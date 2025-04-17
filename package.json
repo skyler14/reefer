@@ -27,6 +27,10 @@
     "encryption"
   ],
   "author": "Skyler Saleebyan",
+  "repository": {
+  "type": "git",
+  "url": "git+https://github.com/skyler14/reefer.git"
+},
   "license": "MIT",
   "dependencies": {
     "crypto-js": "^4.2.0"
