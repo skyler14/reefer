@@ -12,7 +12,10 @@ const external = [
 
 // Shared plugins
 const plugins = [
-  resolve(),
+  resolve({
+    browser: true,
+    preferBuiltins: false
+  }),
   commonjs(),
   typescript({ tsconfig: './tsconfig.json' })
 ];
@@ -53,7 +56,8 @@ export default [
       sourcemap: true,
       globals: {
         'crypto-js/aes': 'CryptoJS.AES',
-        'crypto-js/enc-utf8': 'CryptoJS.enc.Utf8'
+        'crypto-js/enc-utf8': 'CryptoJS.enc.Utf8',
+        'express': 'express'
       }
     },
     plugins: [

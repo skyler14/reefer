@@ -27,4 +27,4 @@ coverage/
 # Temporary files
 *.log
 *.tmp
-
+outputs/*
