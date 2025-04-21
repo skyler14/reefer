@@ -1,5 +1,8 @@
 # Reefer
 
+[![npm version](https://img.shields.io/npm/v/reefer.svg)](https://www.npmjs.com/package/reefer)
+[![npm downloads](https://img.shields.io/npm/dm/reefer.svg)](https://www.npmjs.com/package/reefer)
+
 A lightweight, secure library for managing document references through URL state.
 
 ## Overview
