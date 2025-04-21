@@ -1,6 +1,7 @@
 // src/server/middleware.ts
 import { RefStateServerOptions } from './types';
 import { MemoryStorage } from './storage';
+import { ReferenceIdFormat } from '../types';
 
 // Environment detection
 const isNode = typeof process !== 'undefined' && 
@@ -20,31 +21,73 @@ if (isNode) {
   }
 }
 
-// Secure random bytes implementation
-function secureRandomBytes(length: number): string {
+/**
+ * Generate a secure random string in the requested format
+ * 
+ * @param length Desired length of the output string
+ * @param format Format of the output string
+ * @returns Randomly generated string in the requested format
+ */
+function generateRandomString(length: number, format: ReferenceIdFormat = ReferenceIdFormat.STRING): string {
+  let bytes: Uint8Array;
+  const requiredBytes = format === ReferenceIdFormat.HEX 
+    ? Math.ceil(length / 2)
+    : format === ReferenceIdFormat.BASE64
+      ? Math.ceil(length * 3 / 4)
+      : length;
+      
+  // Generate secure random bytes
   if (isNode && nodeCrypto) {
     // Node.js environment
-    return nodeCrypto.randomBytes(length).toString('hex');
+    bytes = nodeCrypto.randomBytes(requiredBytes);
+  } else if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
+    // Browser environment with Web Crypto API
+    bytes = new Uint8Array(requiredBytes);
+    window.crypto.getRandomValues(bytes);
+  } else {
+    // Fallback (less secure)
+    console.warn('No secure random source available, using Math.random fallback');
+    bytes = new Uint8Array(requiredBytes);
+    for (let i = 0; i < requiredBytes; i++) {
+      bytes[i] = Math.floor(Math.random() * 256);
+    }
   }
   
-  // Browser environment with Web Crypto API
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-    const array = new Uint8Array(length);
-    window.crypto.getRandomValues(array);
-    return Array.from(array)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+  // Format the bytes according to the requested format
+  switch (format) {
+    case ReferenceIdFormat.HEX:
+      // Convert to hexadecimal
+      return Array.from(bytes)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('')
+        .substring(0, length);
+        
+    case ReferenceIdFormat.BASE64:
+      // Convert to base64
+      if (isNode && nodeCrypto) {
+        return nodeCrypto.randomBytes(requiredBytes).toString('base64').substring(0, length);
+      } else {
+        // For browsers
+        const base64 = btoa(String.fromCharCode.apply(null, Array.from(bytes)))
+          .replace(/\+/g, '-') // Convert '+' to '-'
+          .replace(/\//g, '_') // Convert '/' to '_'
+          .replace(/=+$/, ''); // Remove trailing '='
+        return base64.substring(0, length);
+      }
+      
+    case ReferenceIdFormat.STRING:
+    default:
+      // Generate an alphanumeric string
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let result = '';
+      
+      // Use modulo arithmetic on the random bytes to select characters
+      for (let i = 0; i < length; i++) {
+        result += chars.charAt(bytes[i % bytes.length] % chars.length);
+      }
+      
+      return result;
   }
-  
-  // Fallback (less secure) - Should rarely happen
-  console.warn('No secure random source available, using Math.random fallback');
-  let result = '';
-  const characters = 'abcdef0123456789';
-  const charactersLength = characters.length;
-  for (let i = 0; i < length * 2; i++) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-  }
-  return result;
 }
 
 // Simple hash function that works in all environments
@@ -89,7 +132,8 @@ const defaultStorage = new MemoryStorage();
  * Default server options
  */
 const DEFAULT_SERVER_OPTIONS: RefStateServerOptions = {
-  refKeyLength: 16,
+  refKeyLength: 20,
+  refKeyFormat: ReferenceIdFormat.STRING,
   serverSalt: 'reefer-server-salt',
   defaultExpiration: 7 * 24 * 60 * 60 * 1000, // 7 days
   storage: defaultStorage,
@@ -105,6 +149,7 @@ const DEFAULT_SERVER_OPTIONS: RefStateServerOptions = {
 export function createRefStateMiddleware(options: RefStateServerOptions = {}) {
   const {
     refKeyLength,
+    refKeyFormat,
     serverSalt,
     defaultExpiration,
     storage,
@@ -114,21 +159,22 @@ export function createRefStateMiddleware(options: RefStateServerOptions = {}) {
   /**
    * Generate a secure reference ID with optional salting
    * 
+   * @param format Format to generate the ID in
    * @param useSalt Whether to use server salt
    * @returns Secure reference ID
    */
-  function generateReferenceId(useSalt = false): string {
+  function generateReferenceId(format = refKeyFormat, useSalt = false): string {
     // Create a secure random string
-    const randomBytes = secureRandomBytes(refKeyLength! / 2); // 8 bytes = 16 hex chars
+    const randomString = generateRandomString(refKeyLength!, format as ReferenceIdFormat);
     
     // If salting is enabled, mix in server secret
     if (useSalt && serverSalt) {
-      const hash = createHash(randomBytes, serverSalt);
-      return hash.substring(0, refKeyLength);
+      const hash = createHash(randomString, serverSalt);
+      return hash.substring(0, refKeyLength!);
     }
     
-    // Otherwise just use the random bytes directly
-    return randomBytes.substring(0, refKeyLength);
+    // Otherwise just use the random string directly
+    return randomString;
   }
   
   // Return middleware creator function compatible with Express
@@ -136,14 +182,20 @@ export function createRefStateMiddleware(options: RefStateServerOptions = {}) {
     // Create a reference state
     router.post(`${basePath}`, async (req: any, res: any) => {
       try {
-        const { documentIds, salt = false, name = 'Unnamed', expireIn } = req.body;
+        const { 
+          documentIds, 
+          salt = false, 
+          name = 'Unnamed', 
+          expireIn,
+          idFormat = refKeyFormat
+        } = req.body;
         
         if (!Array.isArray(documentIds) || documentIds.length === 0) {
           return res.status(400).json({ error: 'Invalid document IDs' });
         }
         
         // Generate a secure random reference ID
-        const referenceId = generateReferenceId(salt);
+        const referenceId = generateReferenceId(idFormat, salt);
         
         // Calculate expiration time
         const expirationTime = expireIn || defaultExpiration;

@@ -8,7 +8,8 @@ import {
   RefStateErrorType,
   RefStateEventType,
   RefStateEventHandler,
-  ClientRefState
+  ClientRefState,
+  ReferenceIdFormat
 } from './types';
 
 /**
@@ -16,7 +17,8 @@ import {
  */
 const DEFAULT_OPTIONS: RefStateOptions = {
   maxClientDocs: 50,
-  refKeyLength: 16,
+  refKeyLength: 20,
+  refKeyFormat: ReferenceIdFormat.STRING,
   serverEndpoint: '/api/ref-state',
   encryptionKey: 'refstate-default-key',
   defaultExpiration: 7 * 24 * 60 * 60 * 1000, // 7 days
@@ -126,7 +128,7 @@ export class RefStateManager {
   ): Promise<string> {
     try {
       const { serverEndpoint } = this.options;
-      const { salt = '', name = '', expireIn } = options;
+      const { salt = '', name = '', expireIn, idFormat } = options;
       
       const response = await fetch(serverEndpoint!, {
         method: 'POST',
@@ -137,7 +139,8 @@ export class RefStateManager {
           documentIds: docIds,
           salt: salt ? true : false, // Don't send the actual salt
           name: name || 'Unnamed Selection',
-          expireIn
+          expireIn,
+          idFormat: idFormat || this.options.refKeyFormat
         })
       });
       

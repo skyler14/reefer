@@ -1,13 +1,24 @@
 // src/types.ts
 
 /**
+ * ID format options for generated references
+ */
+export enum ReferenceIdFormat {
+  STRING = 'string',
+  HEX = 'hex',
+  BASE64 = 'base64'
+}
+
+/**
  * Configuration options for RefState
  */
 export interface RefStateOptions {
   /** Maximum number of document IDs to handle client-side */
   maxClientDocs?: number;
-  /** Length of reference keys in hexadecimal characters */
+  /** Length of reference keys in characters */
   refKeyLength?: number;
+  /** Format of generated reference IDs */
+  refKeyFormat?: ReferenceIdFormat;
   /** Default server endpoint for RefState API */
   serverEndpoint?: string;
   /** App-wide encryption key for client-side operations */
@@ -30,6 +41,8 @@ export interface CreateRefStateOptions {
   name?: string;
   /** Time in milliseconds until this reference expires */
   expireIn?: number;
+  /** Format for the reference ID (overrides global setting) */
+  idFormat?: ReferenceIdFormat;
 }
 
 /**
