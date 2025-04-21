@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/reefer.svg)](https://www.npmjs.com/package/reefer)
 [![npm downloads](https://img.shields.io/npm/dm/reefer.svg)](https://www.npmjs.com/package/reefer)
 
-A lightweight, secure library for managing document references through URL state.
+A lightweight, secure library for managing document references through URL state with optimized data encoding.
 
 ## Overview
 
@@ -80,7 +80,7 @@ import { RefStateManager } from 'reefer';
 // Create a custom RefState instance with options
 const customRefState = new RefStateManager({
   maxClientDocs: 100, // Max docs to handle client-side (default: 50)
-  refKeyLength: 16, // Length of ref keys in hex chars (default: 16)
+  refKeyLength: 16, // Length of reference ID (default: 16)
   serverEndpoint: '/api/refs', // Custom endpoint (default: /api/ref-state)
   encryptionKey: process.env.REEFER_KEY, // Custom encryption key
   defaultExpiration: 14 * 24 * 60 * 60 * 1000, // 14 days (default: 7 days)
@@ -370,12 +370,26 @@ import {
 } from 'reefer';
 ```
 
+## Technical Details
+
+### Optimized Reference ID Encoding
+
+Reefer uses URL-safe Base64 encoding for reference IDs instead of traditional hexadecimal encoding:
+
+- **More Efficient**: Base64 encoding stores 6 bits per character versus 4 bits for hexadecimal
+- **Shorter IDs**: ~33% shorter IDs for the same level of uniqueness
+- **URL Safety**: Modified Base64 (`+` replaced with `-` and `/` with `_`)
+- **Higher Entropy**: 16-character Base64 ID provides 96 bits of entropy (versus 64 bits for hex)
+
+This encoding choice results in shorter, more compact identifiers while maintaining or improving security.
+
 ## Security Considerations
 
 - Use a strong, unique encryption key in production
 - Use HTTPS for all server communications
 - Consider user-specific salting for sensitive data
 - Never store sensitive information in references
+- Use the default URL-safe Base64 encoding for optimal security-to-length ratio
 
 ## License
 
